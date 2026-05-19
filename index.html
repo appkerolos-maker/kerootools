@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>نظام كيرو للأدوات الصحية</title>
+    <link rel="stylesheet" href="./styles.css?v=2026-04-13-4" />
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --bg-soft: #ffffff;
+        --text: #1e293b;
+        --text-soft: #475569;
+        --primary: #0f4c81;
+        --secondary: #2563eb;
+        --accent: #2563eb;
+        --success: #059669;
+        --warning: #d97706;
+        --danger: #dc2626;
+        --row-alt: #f1f5f9;
+      }
+      body.dark {
+        --bg: #0f172a;
+        --bg-soft: #1e293b;
+        --text: #f1f5f9;
+        --text-soft: #94a3b8;
+        --primary: #3b82f6;
+        --secondary: #60a5fa;
+        --accent: #60a5fa;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --row-alt: #334155;
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <section id="loginScreen" class="center-screen">
+        <form id="loginForm" class="card auth-card">
+          <img id="loginLogo" class="login-logo hidden" alt="شعار المؤسسة" />
+          <h1 id="loginOrgName">كيرو للأدوات الصحية</h1>
+          <p>تسجيل الدخول</p>
+          <label>اسم المستخدم</label>
+          <input id="loginUsername" type="text" autocomplete="off" required />
+          <label>كلمة المرور</label>
+          <input id="loginPassword" type="password" autocomplete="off" required />
+          <button type="submit" class="btn primary">دخول</button>
+        </form>
+      </section>
+
+      <section id="dashboardScreen" class="hidden">
+        <div id="sidebarOverlay" class="sidebar-overlay"></div>
+        <aside class="sidebar">
+          <div class="brand">
+            <div class="sidebar-head">
+              <button id="sidebarToggle" class="btn secondary sidebar-toggle" type="button" aria-label="طي القائمة" title="طي القائمة">◀</button>
+            </div>
+            <img id="sidebarLogo" class="sidebar-logo hidden" alt="شعار المؤسسة" />
+            <h2 id="sidebarOrgName">كيرو للأدوات الصحية</h2>
+            <small id="sidebarOrgPhone">01000000000</small>
+          </div>
+          <nav id="navMenu"></nav>
+          <div class="sidebar-actions">
+            <button id="themeToggle" class="btn secondary">تبديل الوضع</button>
+            <button id="logoutBtn" class="btn danger">تسجيل خروج</button>
+          </div>
+        </aside>
+
+        <main class="main-content">
+          <header class="topbar card">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <button id="mobileMenuBtn" class="btn secondary mobile-only" style="padding: 5px 10px; font-size: 20px;">☰</button>
+              <div>
+                <h3 id="sectionTitle">لوحة التحكم</h3>
+                <small id="liveDate"></small>
+              </div>
+            </div>
+              <div class="top-actions">
+                <span id="currentUserBadge" class="user-badge"></span>
+                <button id="restoreBackupBtn" class="btn warning" onclick="window.kiroRestoreSafetyBackup()" title="استعادة البيانات قبل آخر استيراد">استعادة ما قبل الاستيراد</button>
+                <button id="exportBtn" class="btn secondary">تصدير JSON</button>
+                <label class="btn secondary upload-btn">
+                  استيراد JSON
+                  <input id="importInput" type="file" accept=".json" hidden />
+                </label>
+              </div>
+          </header>
+
+          <section id="dashboard" class="page-section">
+            <div class="card" style="margin-bottom: 20px;">
+              <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+                <div>
+                  <label class="field-label">بحث بالتاريخ (يوم/شهر/سنة):</label>
+                  <input id="dashboardSearchDate" type="text" placeholder="مثال: 19/04/2026" />
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                  <button id="dashboardSearchBtn" class="btn primary" style="width: 100%;">تحديث الإحصائيات</button>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-grid" id="kpiGrid"></div>
+          </section>
+
+          <section id="inventory" class="page-section hidden">
+            <div class="card">
+              <h3>إدارة المخزون</h3>
+              <div class="inline-actions">
+                <strong id="inventoryScopeLabel"></strong>
+                <button id="inventoryBackToShowroom" class="btn secondary hidden" type="button">العودة للمعرض</button>
+              </div>
+              <form id="productForm" class="form-grid">
+                <input type="hidden" id="productId" />
+                <input id="productName" placeholder="اسم المنتج" required />
+                <input id="productBarcode" placeholder="باركود (اختياري)" />
+                <input id="productQty" type="number" min="0.01" step="0.01" placeholder="الكمية" required />
+                <input id="productSalePrice" type="number" min="0" step="0.01" placeholder="سعر البيع (ج.م)" required />
+                <input id="productShopPrice" type="number" min="0" step="0.01" placeholder="سعر البيع للمحلات (ج.م)" required />
+                <input id="productCostPrice" type="number" min="0" step="0.01" placeholder="السعر التجاري (ج.م)" required />
+                <select id="productWarehouse"></select>
+                <button class="btn primary" type="submit">حفظ المنتج</button>
+              </form>
+              <div class="inline-actions">
+                <input id="inventorySearch" placeholder="بحث بالاسم أو الباركود" />
+                <button id="inventoryScanBtn" class="btn secondary scan-btn" type="button" title="قراءة بالكاميرا" aria-label="قراءة بالكاميرا">📷</button>
+                <button id="inventoryFocusBtn" class="btn primary scan-btn" type="button" title="تفعيل القارئ الخارجي" aria-label="تفعيل القارئ الخارجي">🏷️</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>الاسم</th>
+                      <th>الباركود</th>
+                      <th>الكمية</th>
+                      <th>سعر البيع</th>
+                      <th>سعر المحلات</th>
+                      <th>السعر التجاري</th>
+                      <th>المخزن</th>
+                      <th>إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody id="inventoryTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="sales" class="page-section hidden transaction-section"></section>
+          <section id="invoices" class="page-section hidden transaction-section"></section>
+          <section id="salesReturns" class="page-section hidden transaction-section"></section>
+          <section id="invoiceReturns" class="page-section hidden transaction-section"></section>
+          <section id="purchases" class="page-section hidden transaction-section"></section>
+          <section id="fawry" class="page-section hidden transaction-section"></section>
+
+          <section id="records" class="page-section hidden">
+            <div class="card">
+              <h3>السجلات</h3>
+              <div class="inline-actions">
+                <select id="recordType"></select>
+                <input id="recordSearch" placeholder="بحث باسم العميل أو التاريخ" />
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>التاريخ</th>
+                      <th>العميل</th>
+                      <th>الإجمالي</th>
+                      <th>الحالة</th>
+                      <th>إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recordsTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="reports" class="page-section hidden">
+            <div class="card">
+              <h3>التقارير</h3>
+              <div class="inline-actions">
+                <input id="reportDate" type="date" />
+                <select id="reportMonth"></select>
+                <button id="runReports" class="btn primary">تحديث</button>
+                <button id="printReport" class="btn secondary">طباعة</button>
+              </div>
+              <div id="reportSummary" class="kpi-grid"></div>
+              
+              <div class="card" style="margin-top: 20px; border: 1px solid var(--line);">
+                <h3>تقرير أرباح شامل لفترة مخصصة</h3>
+                <div class="form-grid">
+                  <div>
+                    <label>من تاريخ (اختياري):</label>
+                    <input id="profitFromDate" type="date" />
+                  </div>
+                  <div>
+                    <label>إلى تاريخ (اختياري):</label>
+                    <input id="profitToDate" type="date" />
+                  </div>
+                  <div style="display: flex; align-items: flex-end; gap: 10px;">
+                    <button id="runCustomProfitReport" class="btn primary" style="flex: 2;">عرض التقرير</button>
+                    <button id="showAllProfitReport" class="btn secondary" style="flex: 1;">عرض الكل</button>
+                  </div>
+                </div>
+                <div id="customProfitReportResult" style="margin-top: 20px;"></div>
+              </div>
+
+              <canvas id="monthlyChart" height="120"></canvas>
+              <div id="reportDetails"></div>
+            </div>
+          </section>
+
+          <section id="customers" class="page-section hidden">
+            <div class="card">
+              <h3>إدارة العملاء</h3>
+              <form id="customerForm" class="form-grid">
+                <input type="hidden" id="customerId" />
+                <input id="customerName" placeholder="اسم العميل" required />
+                <input id="customerPhone" placeholder="رقم الهاتف" />
+                <input id="customerAddress" placeholder="العنوان" />
+                <input id="customerDebt" type="number" step="0.01" min="0" placeholder="الرصيد المبدئي" />
+                <button type="submit" class="btn primary">حفظ العميل</button>
+              </form>
+              <div class="card" style="margin-top: 15px; background: var(--bg-soft);">
+                <label>بحث عن عميل:</label>
+                <input id="customerSearchInput" placeholder="ابحث بالاسم أو رقم الهاتف..." style="width: 100%; margin-top: 5px;" />
+              </div>
+              <div class="inline-actions">
+                <input id="debtCustomerInput" list="debtCustomerHints" placeholder="اسم العميل أو رقم الهاتف" />
+                <datalist id="debtCustomerHints"></datalist>
+                <input id="debtPayment" type="number" step="0.01" min="0" placeholder="قيمة الدفعة" />
+                <button id="saveDebtPayment" class="btn secondary">تسجيل دفعة</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>الاسم</th>
+                      <th>الهاتف</th>
+                      <th>العنوان</th>
+                      <th>المديونية</th>
+                      <th>إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody id="customersTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="suppliers" class="page-section hidden">
+            <div class="card">
+              <h3>إدارة الموردين</h3>
+              <form id="supplierForm" class="form-grid">
+                <input type="hidden" id="supplierId" />
+                <input id="supplierName" placeholder="اسم المورد" required />
+                <input id="supplierPhone" placeholder="رقم الهاتف" />
+                <input id="supplierAddress" placeholder="العنوان" />
+                <input id="supplierDebt" type="number" step="0.01" placeholder="المديونية له (ج.م)" />
+                <button class="btn primary" type="submit">حفظ المورد</button>
+              </form>
+              <div class="inline-actions">
+                <input id="supplierSearch" placeholder="بحث بالاسم أو الهاتف" />
+              </div>
+
+              <div class="card" style="margin-top: 20px; border: 1px dashed var(--primary);">
+                <h4>تسجيل دفعة لمورد</h4>
+                <div class="form-grid">
+                  <div>
+                    <label>اسم المورد / الهاتف</label>
+                    <input id="supplierPaymentInput" list="suppliersListForPayment" placeholder="اختر المورد" />
+                    <datalist id="suppliersListForPayment"></datalist>
+                  </div>
+                  <div>
+                    <label>المبلغ المدفوع (ج.م)</label>
+                    <input id="supplierPaymentAmount" type="number" step="0.01" placeholder="0.00" />
+                  </div>
+                  <div style="display: flex; align-items: flex-end;">
+                    <button id="saveSupplierPayment" class="btn success" style="width: 100%;">حفظ الدفعة</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>الاسم</th>
+                      <th>الهاتف</th>
+                      <th>العنوان</th>
+                      <th>المديونية</th>
+                      <th>إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody id="suppliersTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="warehouses" class="page-section hidden">
+            <div class="card">
+              <h3>إدارة المخازن</h3>
+              <form id="warehouseForm" class="form-grid">
+                <input type="hidden" id="warehouseId" />
+                <input id="warehouseName" placeholder="اسم المخزن" required />
+                <button class="btn primary" type="submit">حفظ المخزن</button>
+              </form>
+              <div class="form-grid">
+                <select id="transferFrom"></select>
+                <select id="transferTo"></select>
+                <input id="transferProductSearch" list="transferProductHints" placeholder="اسم المنتج" />
+                <datalist id="transferProductHints"></datalist>
+                <input id="transferQty" type="number" min="0.01" step="0.01" placeholder="الكمية" />
+                <button id="transferBtn" class="btn secondary" type="button">نقل كميات</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>اسم المخزن</th>
+                      <th>إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody id="warehouseList"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="sync" class="page-section hidden">
+            <div class="card">
+              <h3>الربط متعدد الأجهزة</h3>
+              <p>
+                تم إلغاء Firebase. النظام يعمل الآن بتخزين محلي فقط عبر
+                <code>localStorage</code> مع مزامنة تلقائية بين تبويبات نفس
+                المتصفح باستخدام <code>BroadcastChannel</code>.
+              </p>
+              <p id="syncStatus" class="card"></p>
+            </div>
+          </section>
+
+          <section id="settings" class="page-section hidden">
+            <div class="card">
+              <h3>الإعدادات</h3>
+              <form id="settingsForm" class="form-grid">
+                <input id="orgName" placeholder="اسم المؤسسة" />
+                <input id="orgPhone" placeholder="رقم الهاتف" />
+                <input id="orgAddress" placeholder="عنوان المؤسسة" />
+                <select id="defaultInvoiceStyle">
+                  <option value="classic">كلاسيك</option>
+                  <option value="modern">مودرن</option>
+                </select>
+                <label class="upload-btn btn secondary">
+                  شعار المؤسسة
+                  <input id="logoInput" type="file" accept="image/*" hidden />
+                </label>
+                <label class="upload-btn btn secondary">
+                  خلفية الفاتورة
+                  <input id="invoiceBgInput" type="file" accept="image/*" hidden />
+                </label>
+                <button id="chooseBackupPathBtn" class="btn secondary" type="button">تحديد مسار النسخ الاحتياطي</button>
+                <input id="backupPathDisplay" type="text" placeholder="مسار النسخ الاحتياطي غير محدد" readonly />
+                <button class="btn primary" type="submit">حفظ الإعدادات</button>
+              </form>
+              <div class="inline-actions mobile-only" id="mobileBackupActions">
+                <button id="settingsMobileExportBtn" class="btn secondary" type="button">تصدير نسخة احتياطية (موبايل)</button>
+                <label class="btn secondary upload-btn" for="settingsMobileImportInput">
+                  استيراد نسخة احتياطية (موبايل)
+                  <input id="settingsMobileImportInput" type="file" accept=".json" hidden />
+                </label>
+              </div>
+              <div class="inline-actions">
+                <a
+                  class="btn success dev-whatsapp-btn"
+                  href="https://wa.me/2001211236140?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7.%20%D8%A3%D8%AD%D8%AA%D8%A7%D8%AC%20%D8%A5%D9%84%D9%89%20%D9%85%D8%B3%D8%A7%D8%B9%D8%AF%D8%A9.%20%F0%9F%A4%94%F0%9F%99%8F"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <span class="wa-icon" aria-hidden="true">W</span>
+                  التواصل مع المطور (واتساب)
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <section id="users" class="page-section hidden">
+            <div class="card">
+              <h3>إدارة المستخدمين</h3>
+              <form id="userForm" class="form-grid">
+                <input type="hidden" id="userId" />
+                <input id="userUsername" placeholder="اسم المستخدم" required />
+                <input id="userPassword" type="password" placeholder="كلمة المرور" required />
+                <select id="userRole">
+                  <option value="manager">مدير</option>
+                  <option value="sales">موظف مبيعات</option>
+                  <option value="accountant">محاسب</option>
+                </select>
+                <button class="btn primary" type="submit">حفظ المستخدم</button>
+              </form>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>اسم المستخدم</th>
+                      <th>الدور</th>
+                      <th>إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usersTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </main>
+      </section>
+    </div>
+
+    <div id="barcodeModal" class="modal hidden">
+      <div class="modal-card">
+        <h3>ملصق باركود</h3>
+        <div id="barcodePrintArea" style="text-align: center; background: white; padding: 10px;">
+          <svg id="barcodeSvg"></svg>
+          <div id="barcodeProductName" style="font-size: 14px; font-weight: bold; margin-top: 5px; color: black;"></div>
+        </div>
+        <div style="margin: 15px 0;">
+          <label>كمية الطباعة:</label>
+          <input id="barcodePrintQty" type="number" value="1" min="1" style="width: 80px; padding: 5px;" />
+        </div>
+        <div class="inline-actions">
+          <button id="printBarcodeBtn" class="btn primary">طباعة</button>
+          <button id="closeBarcodeModal" class="btn secondary">إغلاق</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="quickAddModal" class="modal hidden">
+      <div class="modal-card">
+        <h3>تسجيل منتج سريع</h3>
+        <form id="quickProductForm" class="form-grid">
+          <input id="quickProductName" placeholder="اسم المنتج" required />
+          <input id="quickProductQty" type="number" min="0.01" step="0.01" placeholder="الكمية" required />
+          <input id="quickProductSale" type="number" min="0" step="0.01" placeholder="سعر البيع (ج.م)" required />
+          <input id="quickProductShop" type="number" min="0" step="0.01" placeholder="سعر المحلات (ج.م)" required />
+          <input id="quickProductCost" type="number" min="0" step="0.01" placeholder="السعر التجاري (ج.م)" required />
+          <select id="quickProductWarehouse"></select>
+          <button class="btn primary" type="submit">حفظ</button>
+          <button id="closeQuickAdd" class="btn secondary" type="button">إغلاق</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="lowStockModal" class="modal hidden">
+      <div class="modal-card large">
+        <h3 id="lowStockTitle">تفاصيل المخزون المنخفض</h3>
+        <div id="lowStockBody"></div>
+        <button id="closeLowStockModal" class="btn secondary">إغلاق</button>
+      </div>
+    </div>
+
+    <div id="profitModal" class="modal hidden">
+      <div class="modal-card large">
+        <h3 id="profitTitle">تفاصيل المكسب</h3>
+        <div id="profitBody"></div>
+        <button id="closeProfitModal" class="btn secondary">إغلاق</button>
+      </div>
+    </div>
+
+    <div id="debtModal" class="modal hidden">
+      <div class="modal-card large">
+        <h3 id="debtTitle">تفاصيل مديونيات العملاء</h3>
+        <div id="debtBody"></div>
+        <div class="inline-actions" style="margin-top:15px;">
+          <button id="printDebtBtn" class="btn primary">طباعة كشف</button>
+          <button id="closeDebtModal" class="btn secondary">إغلاق</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="recordDetailsModal" class="modal hidden">
+      <div class="modal-card large">
+        <h3 id="recordDetailsTitle">تفاصيل العملية</h3>
+        <div id="recordDetailsBody"></div>
+        <div class="inline-actions" style="margin-top:15px;">
+          <button id="printRecordDetails" class="btn primary hidden">طباعة</button>
+          <button id="closeRecordDetails" class="btn secondary">إغلاق</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="editProductModal" class="modal hidden">
+      <div class="modal-card">
+        <h3>تعديل بيانات المنتج</h3>
+        <form id="editProductForm">
+          <input type="hidden" id="editProductId" />
+          <div class="form-grid">
+            <div>
+              <label>اسم المنتج</label>
+              <input id="editProductName" type="text" required />
+            </div>
+            <div>
+              <label>الباركود</label>
+              <input id="editProductBarcode" type="text" required />
+            </div>
+            <div>
+              <label>الكمية</label>
+              <input id="editProductQty" type="number" required />
+            </div>
+            <div>
+              <label>سعر البيع</label>
+              <input id="editProductSalePrice" type="number" step="0.01" required />
+            </div>
+            <div>
+              <label>سعر المحلات</label>
+              <input id="editProductShopPrice" type="number" step="0.01" required />
+            </div>
+            <div>
+              <label>سعر التكلفة</label>
+              <input id="editProductCostPrice" type="number" step="0.01" required />
+            </div>
+            <div>
+              <label>المخزن</label>
+              <select id="editProductWarehouse"></select>
+            </div>
+          </div>
+          <div class="inline-actions" style="margin-top: 20px;">
+            <button type="submit" class="btn primary">حفظ التعديلات</button>
+            <button type="button" id="closeEditProductModal" class="btn secondary">إلغاء</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="idleModal" class="modal hidden">
+      <div class="modal-card">
+        <h3>تنبيه خمول</h3>
+        <p>سيتم تسجيل الخروج بعد <span id="idleCountdown">60</span> ثانية.</p>
+        <div class="inline-actions">
+          <button id="idleLogoutNow" class="btn danger">موافق (خروج)</button>
+          <button id="idleStay" class="btn primary">غير موافق (استمرار)</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="scannerModal" class="modal hidden">
+      <div class="modal-card large">
+        <h3 id="scannerTitle">قراءة الباركود بالكاميرا</h3>
+        <video id="scannerVideo" autoplay playsinline muted></video>
+        <p id="scannerStatus">وجّه الكاميرا نحو الباركود.</p>
+        <div class="inline-actions">
+          <button id="closeScannerBtn" class="btn secondary" type="button">إغلاق</button>
+        </div>
+      </div>
+    </div>
+
+    <footer id="appFooter">
+      © جميع الحقوق محفوظة لـ كيرو تك للبرمجيات 2026
+    </footer>
+
+  <script src="./app.js?v=2026-04-13-26"></script>
+  </body>
+</html>
